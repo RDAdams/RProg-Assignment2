@@ -1,0 +1,115 @@
+---
+title: "Practical Machine Learning Course Project"
+output: html_document
+author: "Bobby Adams"
+---
+
+## Processing
+
+First, we download the training and test datasets and load them in through the read.csv function. Clean the data.
+
+```{r cars}
+# load packag
+library(caret)
+# download data 
+if(!file.exists("pml-training.csv")){
+	download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+		destfile = "pml-training.csv", method = "curl")
+}
+if(!file.exists("pml-testing.csv")){
+	download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+		destfile = "pml-testing.csv", method = "curl")
+}
+# load data
+train <- read.csv("pml-training.csv", header = TRUE, na.strings=c("","NA", "#DIV/0!"))
+test <- read.csv("pml-testing.csv", header = TRUE, na.strings=c("","NA", "#DIV/0!"))
+
+
+# see error percentage 
+NAPercent <- round(colMeans(is.na(train)), 2)
+table(NAPercent)
+
+# find index of the complete columns minus the first 
+index <- which(NAPercent==0)[-1]
+# subset the data
+train <- train[, index]
+test <- test[, index]
+# looking at the structure of the data for the first 10 columns
+str(train[, 1:10])
+
+
+# subset the data
+train <- train[, -(1:6)]
+test <- test[, -(1:6)]
+# convert all numerical data to numeric class
+for(i in 1:(length(train)-1)){
+    train[,i] <- as.numeric(train[,i])
+    test[,i] <- as.numeric(test[,i])
+}
+
+```
+
+## Cross Validation
+
+```{r pressure}
+
+# split train data set
+inTrain <- createDataPartition(y=train$classe,p=0.8, list=FALSE)
+trainData <- train[inTrain,]
+validation <- train[-inTrain,]
+# print out the dimentions of the 3 data sets
+rbind(trainData = dim(trainData), validation = dim(validation), test = dim(test))
+
+```
+
+
+
+## Comparing Model/Results
+
+Random forests
+
+```{r pressure1}
+
+# For running multiple cores:
+# load doMC package 
+# library(doMC)
+# set my cores 
+# registerDoMC(cores = 8)
+
+# load randomForest package
+library(randomForest)
+# run the random forest algorithm on the training data set
+rfFit <- randomForest(classe~., data = trainData, method ="rf", prox = TRUE)
+rfFit
+# use model to predict on validation data set
+rfPred <- predict(rfFit, validation)
+# predicted result
+confusionMatrix(rfPred, validation$classe)
+
+```
+
+## Generalised Boosting Regression
+
+```{r pressure2}
+
+# run the generalized boosted regression model
+gbmFit <- train(classe~., data = trainData, method ="gbm", verbose = FALSE)
+gbmFit
+# use model to predict on validation data set
+gbmPred <- predict(gbmFit, validation)
+# predicted result
+confusionMatrix(gbmPred, validation$classe)
+
+```
+
+## Result
+
+ randomForest is the better performing algorithm with 0.43% out-of-bag (OOB) error rate, which is what we expect the out of sample error rate to be. When applied to the validation set for cross validation, the model achieved an accuracy of 99.7%, which indicates the actual error rate is 0.3%, where as GBM has an accuracy of 96.0% with error rate of 4.0%.
+
+```{r pressure3}
+
+# apply random forest model to test set
+predict(rfFit, test)
+
+```
+
